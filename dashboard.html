@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>4-week T-bill roll</title>
+  <style>
+    :root {
+      --ink: #1c1915;
+      --muted: #5c564c;
+      --line: #e4dccf;
+      --paper: #f6f1e7;
+      --card: #fffdf8;
+      --green: #1f6b45;
+      --green-soft: #e5f2ea;
+      --warn: #8a4b12;
+      --warn-soft: #f8ead8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 400px at 10% -10%, #efe4cf 0%, transparent 55%),
+        var(--paper);
+      font: 16px/1.45 "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+    header, main { width: min(1100px, calc(100% - 32px)); margin: 0 auto; }
+    header { padding: 28px 0 8px; }
+    h1 { font-family: Georgia, "Iowan Old Style", serif; font-weight: 600; font-size: 2rem; margin: 0 0 6px; }
+    .lede { color: var(--muted); max-width: 68ch; margin: 0; }
+    .grid { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 16px; margin: 20px 0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+    .kicker { letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.72rem; color: var(--muted); margin: 0 0 8px; }
+    .stat { font-family: Georgia, serif; font-size: 1.8rem; margin: 0; color: var(--green); }
+    .sub { color: var(--muted); margin: 4px 0 0; font-size: 0.92rem; }
+    label { display: block; font-size: 0.85rem; margin: 10px 0 4px; }
+    input, select, button {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid #cfc4b2;
+      padding: 8px 10px;
+      background: white;
+      color: var(--ink);
+    }
+    input, select { width: 100%; }
+    button {
+      background: var(--ink);
+      color: white;
+      border: 0;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+    button:hover { background: #333; }
+    .row { display: flex; gap: 10px; align-items: end; }
+    .row > div { flex: 1; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+    th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    td.num, th.num { text-align: right; }
+    .status {
+      display: inline-block;
+      background: var(--warn-soft);
+      color: var(--warn);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.85rem;
+    }
+    .status.saved { background: var(--green-soft); color: var(--green); }
+    .note { color: var(--muted); font-size: 0.88rem; }
+    .error { color: #8d1d1d; }
+    .scroll { overflow-x: auto; }
+    footer { width: min(1100px, calc(100% - 32px)); margin: 8px auto 28px; color: var(--muted); font-size: 0.85rem; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="kicker">US Treasury · 4-week bills</p>
+    <h1>Roll the bill, keep the yield</h1>
+    <p class="lede">Recent 4-week auctions from the Treasury Fiscal Data API, plus a constant-price reinvestment of principal and interest. This page does not trade.</p>
+  </header>
+  <main>
+    <div class="grid">
+      <section class="card">
+        <p class="kicker">Latest auction projection</p>
+        <p id="latest-meta" class="sub">Loading auction…</p>
+        <div class="row">
+          <div>
+            <label for="notional">Cash notional</label>
+            <input id="notional" type="number" min="1" step="1" value="10000">
+          </div>
+          <div>
+            <p class="kicker">One cycle</p>
+            <p id="one-cycle" class="stat">—</p>
+          </div>
+          <div>
+            <p class="kicker">After 13 rolls</p>
+            <p id="balance" class="stat">—</p>
+          </div>
+        </div>
+        <p id="projection-note" class="note"></p>
+      </section>
+      <section class="card">
+        <p class="kicker">Broker keys</p>
+        <p id="conn" class="status">checking local keys…</p>
+        <form id="keys">
+          <label for="broker">Broker adapter (not connected)</label>
+          <select id="broker" name="broker">
+            <option value="schwab">Charles Schwab</option>
+            <option value="ibkr">Interactive Brokers</option>
+          </select>
+          <label for="mode">Paper or live label</label>
+          <select id="mode" name="mode">
+            <option value="paper">Paper</option>
+            <option value="live">Live</option>
+          </select>
+          <label for="api_key">API key</label>
+          <input id="api_key" name="api_key" type="password" autocomplete="off" spellcheck="false">
+          <label for="api_secret">API secret</label>
+          <input id="api_secret" name="api_secret" type="password" autocomplete="off" spellcheck="false">
+          <button type="submit">Save locally</button>
+        </form>
+        <p id="masked" class="note"></p>
+        <p id="key-note" class="note"></p>
+        <p id="key-error" class="error"></p>
+      </section>
+    </div>
+    <section class="card">
+      <p class="kicker">Recent auctions</p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Auction</th>
+              <th>CUSIP</th>
+              <th>Issue</th>
+              <th>Maturity</th>
+              <th class="num">Days</th>
+              <th class="num">Discount</th>
+              <th class="num">Investment</th>
+              <th class="num">Price / $100</th>
+              <th class="num" id="interest-head">Interest</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p id="table-error" class="error"></p>
+      <p id="source" class="note"></p>
+    </section>
+  </main>
+  <footer>
+    Not investment advice. T-bill interest is federally taxable and generally exempt from state tax. Yield is the Treasury rate, not an extra spread. No order is sent from this page.
+  </footer>
+  <script>
+    const notional = document.getElementById("notional");
+    const rows = document.getElementById("rows");
+
+    function money(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "—";
+      return number.toLocaleString("en-US", { style: "currency", currency: "USD" });
+    }
+
+    function pct(value) {
+      return value == null || value === "" ? "—" : value + "%";
+    }
+
+    async function loadAuctions() {
+      const amount = notional.value || "10000";
+      document.getElementById("table-error").textContent = "";
+      const response = await fetch("/api/auctions?notional=" + encodeURIComponent(amount) + "&rolls=13&limit=12");
+      const payload = await response.json();
+      if (!response.ok) {
+        document.getElementById("table-error").textContent = payload.error || "Could not load auctions.";
+        return;
+      }
+      const latest = payload.latest;
+      document.getElementById("latest-meta").textContent =
+        "CUSIP " + latest.cusip +
+        " · auction " + latest.auction_date +
+        " · issue " + latest.issue_date +
+        " · maturity " + latest.maturity_date +
+        " · " + latest.days + " days · investment " + pct(latest.investment_rate) +
+        " · discount " + pct(latest.discount_rate) +
+        " · price " + latest.price_per_100;
+      document.getElementById("one-cycle").textContent = money(latest.one_cycle_interest);
+      document.getElementById("balance").textContent = money(latest.balance_after_rolls);
+      document.getElementById("projection-note").textContent =
+        "One-cycle interest and the 13-roll balance reinvest the same discount price. " +
+        payload.disclaimer;
+      document.getElementById("interest-head").textContent = "Interest on " + money(payload.notional);
+      document.getElementById("source").textContent = "Source: " + payload.source;
+      rows.replaceChildren();
+      for (const auction of payload.auctions) {
+        const tr = document.createElement("tr");
+        const cells = [
+          auction.auction_date,
+          auction.cusip,
+          auction.issue_date,
+          auction.maturity_date,
+          String(auction.days),
+          pct(auction.discount_rate),
+          pct(auction.investment_rate),
+          auction.price_per_100,
+          money(auction.interest)
+        ];
+        cells.forEach((text, index) => {
+          const td = document.createElement("td");
+          td.textContent = text;
+          if (index >= 4) td.className = "num";
+          tr.appendChild(td);
+        });
+        rows.appendChild(tr);
+      }
+    }
+
+    async function loadSettings() {
+      const response = await fetch("/api/settings");
+      const payload = await response.json();
+      const conn = document.getElementById("conn");
+      conn.textContent = payload.connection_status || "trading not wired";
+      conn.classList.toggle("saved", Boolean(payload.saved));
+      if (payload.broker) document.getElementById("broker").value = payload.broker;
+      if (payload.mode) document.getElementById("mode").value = payload.mode;
+      const masked = [];
+      if (payload.api_key_masked) masked.push("key " + payload.api_key_masked);
+      if (payload.api_secret_masked) masked.push("secret " + payload.api_secret_masked);
+      document.getElementById("masked").textContent = masked.length
+        ? "Stored locally as " + masked.join(", ") + ". The full values are not shown again."
+        : "Nothing stored yet.";
+      document.getElementById("key-note").textContent = payload.note || "";
+    }
+
+    document.getElementById("keys").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      document.getElementById("key-error").textContent = "";
+      const body = {
+        broker: document.getElementById("broker").value,
+        mode: document.getElementById("mode").value,
+        api_key: document.getElementById("api_key").value,
+        api_secret: document.getElementById("api_secret").value
+      };
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const payload = await response.json();
+      document.getElementById("api_key").value = "";
+      document.getElementById("api_secret").value = "";
+      if (!response.ok) {
+        document.getElementById("key-error").textContent = payload.error || "Could not save keys.";
+        return;
+      }
+      await loadSettings();
+    });
+
+    notional.addEventListener("change", () => {
+      loadAuctions().catch((err) => {
+        document.getElementById("table-error").textContent = String(err);
+      });
+    });
+
+    loadAuctions().catch((err) => {
+      document.getElementById("table-error").textContent = String(err);
+    });
+    loadSettings().catch((err) => {
+      document.getElementById("key-error").textContent = String(err);
+    });
+  </script>
+</body>
+</html>

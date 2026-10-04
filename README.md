@@ -59,3 +59,17 @@ Balance after 13 rolls (constant price, full reinvestment): $10,401.78
 ```
 
 The same auction's TreasuryDirect competitive-results PDF is [R_20261001_1.pdf](https://www.treasurydirect.gov/instit/annceresult/press/preanre/2026/R_20261001_1.pdf): high rate 3.890% (discount), investment rate 3.956% (equivalent coupon-issue yield), price 99.697444.
+
+## Dashboard
+
+Run the local page (localhost only):
+
+```bash
+python3 serve.py
+```
+
+Then open http://127.0.0.1:8765/ . If that port is already taken, the process stays on localhost and prints the next free port.
+
+The page loads recent 4-week bill auctions from the same Fiscal Data API as `roll.py`, shows discount rate, investment rate, price, and interest on a cash notional (default $10,000), and reuses `roll.py` for the one-cycle interest and 13-roll balance.
+
+A settings panel can store a broker API key and secret, with a paper/live label, in `keys.json` in this directory. That file is gitignored. The server never prints the key or secret and only returns a masked form after save. TreasuryDirect has no public trading API, so the keys are only for a later Schwab or IBKR adapter. The connection status stays "keys saved locally, trading not wired". This dashboard does not call a brokerage and does not send an order.
