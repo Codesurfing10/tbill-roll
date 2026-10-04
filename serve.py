@@ -6,6 +6,7 @@ Broker keys, if saved, stay in keys.json and are never printed.
 """
 
 import json
+import sys
 import os
 from decimal import Decimal, InvalidOperation
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -254,5 +255,53 @@ def main():
         httpd.server_close()
 
 
+def export_static():
+    """Write a snapshot into dashboard.html and docs/ for GitHub Pages or file open."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    payload = auctions_public(Decimal("10000"), 13, 12)
+    payload["fetched_at"] = datetime.now(ZoneInfo("America/Tijuana")).isoformat(timespec="seconds")
+    payload["note"] = (
+        "Snapshot of the public Fiscal Data auctions API. "
+        "Embedded so the page still renders if a live request fails. Not a trade."
+    )
+    raw = json.dumps(payload, indent=2).replace("<", "\\u003c")
+    html_path = ROOT / "dashboard.html"
+    html = html_path.read_text(encoding="utf-8")
+    start = html.find('<script id="tbill-snapshot"')
+    end = html.find("</script>", start)
+    if start < 0 or end < 0:
+        raise SystemExit("dashboard.html is missing the snapshot script")
+    close = end + len("</script>")
+    html = (
+        html[:start]
+        + '<script id="tbill-snapshot" type="application/json">\n'
+        + raw
+        + "\n  </script>"
+        + html[close:]
+    )
+    html_path.write_text(html, encoding="utf-8")
+    docs = ROOT / "docs"
+    docs.mkdir(exist_ok=True)
+    (docs / ".nojekyll").write_text("", encoding="utf-8")
+    (docs / "index.html").write_text(html, encoding="utf-8")
+    (docs / "data.json").write_text(raw + "\n", encoding="utf-8")
+    latest = payload["latest"]
+    print(
+        f"snapshot {latest['cusip']} auction {latest['auction_date']} "
+        f"investment {latest['investment_rate']}% fetched {payload['fetched_at']}"
+    )
+    print(f"wrote {html_path}")
+    print(f"wrote {docs / 'index.html'}")
+
+
 if __name__ == "__main__":
-    main()
+    if "--export" in sys.argv:
+        try:
+            export_static()
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        main()

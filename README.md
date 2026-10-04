@@ -62,14 +62,24 @@ The same auction's TreasuryDirect competitive-results PDF is [R_20261001_1.pdf](
 
 ## Dashboard
 
-Run the local page (localhost only):
+`serve.py` listens only on 127.0.0.1 of the machine where it is running. Opening http://127.0.0.1:8765/ on a different computer does not reach it. On this box, port 8765 is also often already taken by another local program, so `serve.py` prints the next free port (for example http://127.0.0.1:8766/).
+
+The public page is GitHub Pages, built from `docs/`:
+
+https://codesurfing10.github.io/tbill-roll/
+
+You can also open `dashboard.html` or `docs/index.html` as a file. The Treasury auctions API sends `Access-Control-Allow-Origin: *`, so a normal browser can read it directly. If that request fails (common for a `file:` page), the HTML uses an embedded snapshot and shows when that snapshot was fetched. Refresh the snapshot with:
+
+```bash
+python3 serve.py --export
+```
+
+Live local server, still the only mode that writes broker keys to gitignored `keys.json`:
 
 ```bash
 python3 serve.py
 ```
 
-Then open http://127.0.0.1:8765/ . If that port is already taken, the process stays on localhost and prints the next free port.
+The page lists recent 4-week auctions (discount rate, investment rate, price per $100, and interest on a cash notional, default $10,000) and the one-cycle / 13-roll projection from the same price math as `roll.py`.
 
-The page loads recent 4-week bill auctions from the same Fiscal Data API as `roll.py`, shows discount rate, investment rate, price, and interest on a cash notional (default $10,000), and reuses `roll.py` for the one-cycle interest and 13-roll balance.
-
-A settings panel can store a broker API key and secret, with a paper/live label, in `keys.json` in this directory. That file is gitignored. The server never prints the key or secret and only returns a masked form after save. TreasuryDirect has no public trading API, so the keys are only for a later Schwab or IBKR adapter. The connection status stays "keys saved locally, trading not wired". This dashboard does not call a brokerage and does not send an order.
+A settings panel can store a broker API key and secret, with a paper/live label. With `serve.py`, they go to `keys.json` (gitignored, mode 600). On the static page they stay in that browser's localStorage and are not uploaded. The server never prints a secret and only returns a mask. TreasuryDirect has no public trading API. Status stays "trading not wired". This does not call a brokerage and does not send an order.
